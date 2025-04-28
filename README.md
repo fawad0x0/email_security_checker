@@ -45,7 +45,7 @@ sudo yum install bind-utils curl openssl
 2. Navigate to the project directory:
 
     ```bash
-    cd repository-name
+    cd email_security_checker
     ```
 
 3. Make the script executable:
