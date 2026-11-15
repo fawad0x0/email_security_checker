@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Fake curl for offline tests. Serves $FAKE_HTTP/<url without scheme, '/' and ':' as '_'>
+# and fails like 'curl -f' (exit 22) when the file does not exist.
+
+url=${!#}
+file="${FAKE_HTTP:?FAKE_HTTP is not set}/$(sed -E 's#^https?://##; s#[/:]#_#g' <<< "$url")"
+[[ -f $file ]] || exit 22
+cat "$file"

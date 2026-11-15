@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck
+        run: shellcheck -x email_security_checker.sh tests/run_tests.sh tests/bin/dig tests/bin/curl
+
+      - name: Offline tests
+        run: bash tests/run_tests.sh
+
+  live-smoke:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dig
+        run: sudo apt-get update && sudo apt-get install -y dnsutils
+
+      - name: Check a real domain
+        run: |
+          ./email_security_checker.sh --json --skip-tls google.com | tee result.json
+          grep -q '"score":' result.json

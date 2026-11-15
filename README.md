@@ -1,92 +1,124 @@
-
 # Email Security Checker
 
-A script to perform a comprehensive check on your email security, including SPF, DKIM, DMARC, MX records, DNSSEC, and more. This tool helps identify potential issues in your email security setup and suggests corrective actions to enhance your protection against spoofing, phishing, and other email-based threats.
+A Bash script that audits a domain's email security: SPF, DKIM, DMARC, MX, DNSSEC, MTA-STS, TLS-RPT, BIMI and CAA. It scores the setup, explains each problem, and suggests the exact DNS records to fix it.
 
 ## Features
 
-- SPF Check
-- DKIM Check
-- DMARC Check
-- MX Records Check
-- DNSSEC Validation
-- MTA-STS Check
-- TLS-RPT Check
-- BIMI Check
-- CAA Check
+- **MX**: null MX (RFC 7505), CNAME targets, missing A/AAAA records, IPv6-only hosts, forward-confirmed reverse DNS (PTR), blocklist lookups (Spamhaus ZEN, SpamCop), and STARTTLS on port 25 (certificate validity, expiry, TLS version)
+- **SPF**: duplicate records, the `all` qualifier (`-all` / `~all` / `?all` / `+all`, following `redirect=`), the 10-DNS-lookup limit (counted recursively), broken `include:`/`redirect=` targets and the deprecated `ptr` mechanism
+- **DKIM**: 40+ common selectors queried in parallel plus your own (`-s`), RSA key size (via `openssl`), Ed25519 keys, revoked keys and testing mode
+- **DMARC**: duplicate records, policy strength (`reject` > `quarantine` > `none`), `pct`, `sp=none`, reporting (`rua`), alignment, and fallback to the organizational domain for subdomains
+- **DNSSEC**: DS record at the parent, DNSKEY, and real validation through the AD flag (detects broken chains)
+- **MTA-STS**: policy file fetched over HTTPS, `mode`, `max_age`, and whether every MX host is covered by the policy's `mx:` lines
+- **TLS-RPT**: record and report destination
+- **BIMI**: logo URL is HTTPS and an SVG, mark certificate (`a=`), and the DMARC enforcement BIMI requires
+- **CAA**: issuing CAs (inherited from parent domains), `iodef`
+
+DNS failures (SERVFAIL or timeout) are reported as "lookup failed" and left out of the score, so a resolver problem doesn't look like a missing record.
 
 ## Prerequisites
 
-This script requires the following dependencies:
-- `dig`
-- `curl`
-- `openssl`
-
-Install the required tools on Ubuntu/Debian:
+- Bash 4.4 or newer (macOS ships 3.2: `brew install bash`)
+- `dig`, `curl`, `openssl`
 
 ```bash
-sudo apt install dnsutils curl openssl
+sudo apt install dnsutils curl openssl      # Ubuntu/Debian/Kali
+sudo dnf install bind-utils curl openssl    # RHEL/Fedora
+brew install bash bind curl openssl         # macOS
 ```
 
-Or on RHEL/CentOS:
+## Usage
 
 ```bash
-sudo yum install bind-utils curl openssl
+git clone https://github.com/fawad0x0/email_security_checker.git
+cd email_security_checker
+chmod +x email_security_checker.sh
+
+./email_security_checker.sh example.com
 ```
 
-## How to Use
+With no domain, the script asks for one interactively.
 
-1. Clone this repository:
+```text
+Usage: email_security_checker.sh [options] [domain ...]
 
-    ```bash
-    git clone https://github.com/fawad0x0/email_security_checker.git
-    ```
+Options:
+  -d, --domain DOMAIN     Domain to check (repeatable; positional args also work)
+  -f, --file FILE         Read domains from FILE, one per line ('-' for stdin)
+  -s, --selector NAME     Extra DKIM selector to try (repeatable)
+  -o, --output FILE       Write the text report to FILE (default: auto-named per domain)
+      --no-report         Don't write a text report file
+      --json              Print results as JSON (one object per line per domain)
+      --no-color          Disable coloured output (also honours NO_COLOR)
+  -q, --quiet             Only print the summary line per domain
+      --fail-under N      Exit with status 1 if any domain scores below N (0-100)
+      --resolver IP       DNS resolver to query (default: system resolver)
+      --skip-tls          Skip live TLS probes (SMTP STARTTLS, HTTPS certificate issuer)
+  -h, --help              Show this help
+  -V, --version           Show version
+```
 
-2. Navigate to the project directory:
+Exit status: `0` success, `1` a score is below `--fail-under`, `2` usage, dependency or invalid-domain error.
 
-    ```bash
-    cd email_security_checker
-    ```
+### Examples
 
-3. Make the script executable:
+```bash
+# Check a domain that signs with a custom DKIM selector
+./email_security_checker.sh -s mycompany2024 example.com
 
-    ```bash
-    chmod +x email_security_checker.sh
-    ```
+# Check many domains, one summary line each
+./email_security_checker.sh -q -f domains.txt --no-report
 
-4. Run the script:
+# JSON for dashboards or scripts
+./email_security_checker.sh --json example.com | jq '.score, .fixes'
 
-    ```bash
-    ./email_security_checker.sh
-    ```
+# Fail a CI job when the score drops below 80
+./email_security_checker.sh --no-report --fail-under 80 example.com
+```
 
-5. Enter the domain to check when prompted (e.g., example.com).
+The domain can also be given as a URL or an email address (`https://Example.com/`, `user@example.com`).
 
-## Script Breakdown
+### Notes
 
-### Dependency Check
+- **DKIM selectors** can't be listed from DNS. If no key is found on the common selectors, the result is "unknown", not "missing". Look up `s=` in the `DKIM-Signature` header of a message you sent, and pass it with `-s`.
+- **Port 25** is blocked by many ISPs and cloud providers. If it's unreachable, the STARTTLS probe is skipped with a note and the score isn't affected.
+- **Blocklists**: Spamhaus refuses queries from public resolvers (8.8.8.8, 1.1.1.1). Use `--resolver` with your own resolver for accurate results.
 
-The script checks for the necessary dependencies (`dig`, `curl`, `openssl`). If any are missing, it will inform you and provide installation instructions.
+## Scoring
 
-### Domain Validation
+| Check   | Points |
+|---------|-------:|
+| SPF     |     20 |
+| DKIM    |     20 |
+| DMARC   |     20 |
+| MX      |     15 |
+| DNSSEC  |     10 |
+| MTA-STS |      5 |
+| CAA     |      5 |
+| TLS-RPT |      3 |
+| BIMI    |      2 |
 
-It ensures the domain is in a valid format before proceeding with checks.
+Checks earn partial credit. For example, SPF `~all` earns 16 of 20 points and `-all` earns 20, and DMARC `p=none` earns 5 of 20 points and `p=reject` earns 20. Checks that don't apply (for example MTA-STS on a domain with a null MX) or whose lookups failed are left out of the total. Grades: 90%+ Excellent, 75%+ Good, 50%+ Fair, otherwise Poor.
 
-### Individual Checks
+## Recommended fixes
 
-- **SPF Check**: Ensures the domain has an SPF record and checks for any broken SPF redirects.
-- **DKIM Check**: Looks for DKIM selectors and verifies their correctness.
-- **DMARC Check**: Verifies the DMARC record and checks for valid policies.
-- **MX Records Check**: Validates the MX records and checks for IPv6 handling.
-- **DNSSEC Validation**: Verifies if DNSSEC is properly configured.
-- **MTA-STS Check**: Validates the existence and correctness of MTA-STS records.
-- **TLS-RPT Check**: Checks for TLS reporting records.
-- **BIMI Check**: Verifies the existence of BIMI records.
-- **CAA Check**: Ensures a CAA record exists to prevent unauthorized certificate issuances.
+Fixes are printed at the end and included in the report and JSON output. Where possible they are tailored to the domain:
 
-### Scoring System
+- The SPF `include:` and the DKIM setup steps are based on the mail provider detected from the MX records (Google Workspace, Microsoft 365, Zoho, Proton, Fastmail, Mimecast, GoDaddy).
+- DMARC changes keep the existing tags and move the policy one step at a time (`none` → `quarantine` → `reject`).
+- The MTA-STS policy file lists the domain's actual MX hosts.
+- The CAA record names the CA that currently issues the domain's HTTPS certificate.
 
-The script assigns weights to each check, calculating an overall security score for the domain. The final score is displayed at the end, along with recommendations for improvement.
+## Development
+
+The tests run offline. They put a fake `dig` and `curl` on `PATH` that answer from [tests/fixtures](tests/fixtures).
+
+```bash
+bash tests/run_tests.sh
+shellcheck -x email_security_checker.sh tests/run_tests.sh tests/bin/*
+```
+
+GitHub Actions runs both on every push and pull request, plus a non-blocking check against a real domain.
 
 ## License
 
