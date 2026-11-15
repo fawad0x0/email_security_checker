@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Fake dig for offline tests. Answers from $FAKE_ZONE, whose lines are "name TYPE rdata".
+# Special lines: "name SERVFAIL" fails every query for name and its subdomains,
+# "name AD" sets the AD flag on answers for name. Unknown names return NXDOMAIN.
+
+name="" type=A
+for arg in "$@"; do
+    case $arg in
+        +*|@*) ;;
+        *) if [[ -z $name ]]; then name=$arg; else type=$arg; fi ;;
+    esac
+done
+name=${name%.}
+name=${name,,}
+zone=${FAKE_ZONE:?FAKE_ZONE is not set}
+
+lines=$(awk -v n="$name" 'tolower($1) == n' "$zone")
+status=NXDOMAIN
+[[ -n $lines ]] && status=NOERROR
+while read -r fail_name _; do
+    [[ $name == "$fail_name" || $name == *".$fail_name" ]] && status=SERVFAIL
+done < <(awk 'toupper($2) == "SERVFAIL" { print tolower($1) }' "$zone")
+
+flags="qr rd ra"
+awk '{ print toupper($2) }' <<< "$lines" | grep -qx AD && flags+=" ad"
+
+echo ";; Got answer:"
+echo ";; ->>HEADER<<- opcode: QUERY, status: $status, id: 4242"
+echo ";; flags: $flags; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 1"
+echo ""
+[[ $status == NOERROR ]] || exit 0
+awk -v t="${type^^}" '
+    toupper($2) == t {
+        owner = $1
+        sub(/^[^ \t]+[ \t]+[^ \t]+[ \t]+/, "")
+        printf "%s.\t300\tIN\t%s\t%s\n", owner, t, $0
+    }' <<< "$lines"

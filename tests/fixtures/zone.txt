@@ -1,0 +1,52 @@
+good.example SOA ns1.good.example. hostmaster.good.example. 1 7200 3600 1209600 3600
+good.example AD
+good.example MX 10 aspmx.l.google.com.
+good.example MX 20 alt1.aspmx.l.google.com.
+aspmx.l.google.com A 142.250.1.27
+alt1.aspmx.l.google.com A 142.250.2.27
+27.1.250.142.in-addr.arpa PTR aspmx.l.google.com.
+27.2.250.142.in-addr.arpa PTR alt1.aspmx.l.google.com.
+good.example TXT "google-site-verification=abc123"
+good.example TXT "v=spf1 include:_spf.google.com -all"
+_spf.google.com TXT "v=spf1 include:_netblocks.google.com ~all"
+_netblocks.google.com TXT "v=spf1 ip4:35.190.247.0/24 ~all"
+google._domainkey.good.example TXT "v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1xngA347nTE+YLMrIimT0MkjCUBnqWb3FSP/TfhKdO47nsckiONf50zrV3x1tSLSfBrlgz4QF5umxwaqm07FdjpXvIAG44Qu5hPBUhRD+UlbxvJZVmJ0Nf7YTEeGq6N891/WaXTT8ksmUU9gTHNUC2oLK5KqzSJn9/xNThDY0w3yBZ6z+iVoBEaIG36GxMtuozwOwPw7iB1PRV8U/7UylXv/+S6J9ZSl2nZNf2AGZRK5cZasEDIVkyAMP4x" "s+eY9JJnvjOcFprZ7+D7H7TeXqssosrn40krjcGapJuyEiZkjYVbyyUiTxw0v5LwtEnLb/CBhGVMcJTBtSy18x5RwzwIDAQAB"
+_dmarc.good.example TXT "v=DMARC1; p=reject; rua=mailto:dmarc@good.example"
+good.example DS 12345 13 2 ABCDEF0123456789
+good.example DNSKEY 257 3 13 AAAAexamplekey
+_mta-sts.good.example TXT "v=STSv1; id=2026010101"
+_smtp._tls.good.example TXT "v=TLSRPTv1; rua=mailto:tls@good.example"
+default._bimi.good.example TXT "v=BIMI1; l=https://good.example/logo.svg; a=https://good.example/vmc.pem"
+good.example CAA 0 issue "letsencrypt.org"
+good.example CAA 0 iodef "mailto:security@good.example"
+sub.good.example A 192.0.2.1
+
+bad.example SOA ns1.bad.example. hostmaster.bad.example. 1 7200 3600 1209600 3600
+bad.example MX 10 mail.bad.example.
+bad.example MX 20 mx2.bad.example.
+mail.bad.example CNAME host.bad.example.
+mail.bad.example A 192.0.2.10
+10.2.0.192.zen.spamhaus.org A 127.0.0.2
+bad.example TXT "v=spf1 redirect=_spf.bad.example"
+_spf.bad.example TXT "v=spf1 ip4:192.0.2.0/24 ~all"
+s1._domainkey.bad.example TXT "k=rsa; p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQC9nDfUbLCrWmJDCcHkT1CfaRHDD8Qwf926MD+HChBp5cVd8Dxz1GMYJphB5960E5XuQnZAPz5VncBqVJUssF2nbvo1+sDY+j9L1oIzYP3E6MTPD1tobTtLbMgIMONP7ydadvIN1mwo130+AhVQH/9teXIEr+OqlOCKGWkqD5KFDQIDAQAB"
+_dmarc.bad.example TXT "v=DMARC1; sp=none; p=none"
+
+nullmx.example SOA ns1.nullmx.example. hostmaster.nullmx.example. 1 7200 3600 1209600 3600
+nullmx.example MX 0 .
+nullmx.example TXT "v=spf1 -all"
+_dmarc.nullmx.example TXT "v=DMARC1; p=reject;"
+
+multi.example SOA ns1.multi.example. hostmaster.multi.example. 1 7200 3600 1209600 3600
+multi.example MX 10 mx.multi.example.
+mx.multi.example A 192.0.2.20
+multi.example TXT "v=spf1 -all"
+multi.example TXT "v=spf1 include:_spf.google.com ~all"
+_dmarc.multi.example TXT "v=DMARC1; p=reject"
+_dmarc.multi.example TXT "v=DMARC1; p=none"
+
+lookups.example SOA ns1.lookups.example. hostmaster.lookups.example. 1 7200 3600 1209600 3600
+lookups.example TXT "v=spf1 a:h1.x.example a:h2.x.example a:h3.x.example a:h4.x.example a:h5.x.example a:h6.x.example a:h7.x.example a:h8.x.example a:h9.x.example a:h10.x.example a:h11.x.example -all"
+lookups.example CAA 0 issue "pki.goog"
+
+servfail.example SERVFAIL
